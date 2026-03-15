@@ -1,0 +1,19 @@
+{
+  "name": "易経 擲銭法占い",
+  "short_name": "易経占い",
+  "description": "易経の擲銭法による本格的な占いアプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0a02",
+  "theme_color": "#d4a017",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
