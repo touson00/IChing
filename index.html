@@ -122,6 +122,42 @@ body{background:var(--bg);color:var(--text);font-family:"Hiragino Mincho ProN","
 .all-yao-name{color:var(--gold);font-size:.8rem;letter-spacing:.1em;margin-bottom:6px}
 .ch-mark{color:var(--red);margin-left:6px;font-size:.75rem}
 .all-yao-text{line-height:1.8;font-size:.85rem;color:var(--text)}
+
+/* Nav bar */
+.nav-bar{display:flex;gap:8px;margin-top:16px}
+.nav-btn{flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--text2);font-size:.85rem;font-family:inherit;letter-spacing:.1em;cursor:pointer;transition:all .15s}
+.nav-btn:hover{background:#1e1408;border-color:var(--gold);color:var(--gold)}
+.nav-btn.active{background:#2a1e0a;border-color:var(--gold2);color:var(--gold2)}
+
+/* History */
+.history-item{padding:14px;border:1px solid var(--border);border-radius:3px;margin-top:12px;background:#160e02}
+.history-date{font-size:.72rem;color:var(--text2);margin-bottom:5px;letter-spacing:.05em}
+.history-question{font-size:.88rem;color:var(--text);margin-bottom:5px}
+.history-hex{color:var(--gold);font-size:.92rem;letter-spacing:.08em}
+.history-memo-text{margin-top:6px;font-size:.82rem;color:var(--text2);white-space:pre-wrap;line-height:1.6;padding:6px 8px;background:#0f0a02;border-radius:2px;border-left:2px solid var(--border)}
+.history-empty{text-align:center;color:var(--text2);font-size:.9rem;padding:32px 0;letter-spacing:.08em}
+.export-btn{display:block;width:100%;margin-top:4px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--gold);font-size:.82rem;font-family:inherit;letter-spacing:.1em;cursor:pointer;text-align:center;transition:all .15s}
+.export-btn:hover{background:#1e1408;border-color:var(--gold)}
+.memo-details summary{color:var(--gold);font-size:.8rem;cursor:pointer;letter-spacing:.08em;outline:none;list-style:none;padding:4px 0}
+.memo-details summary::-webkit-details-marker{display:none}
+.memo-input{width:100%;background:#0f0a02;border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:.85rem;padding:8px 10px;font-family:inherit;resize:vertical;min-height:60px;outline:none;margin-top:8px;transition:border-color .2s}
+.memo-input:focus{border-color:var(--gold)}
+.memo-save-btn{margin-top:6px;padding:6px 18px;background:transparent;border:1px solid var(--border);border-radius:2px;color:var(--gold);font-size:.8rem;font-family:inherit;cursor:pointer;letter-spacing:.08em;transition:all .15s}
+.memo-save-btn:hover{border-color:var(--gold);background:#1e1408}
+
+/* Result memo */
+.result-memo-area{margin-top:12px;padding:12px;background:#160e02;border:1px solid var(--border);border-radius:3px}
+.result-memo-label{color:var(--gold);font-size:.82rem;letter-spacing:.1em;margin-bottom:6px}
+
+/* Research mode */
+.research-line-row{display:flex;align-items:center;gap:5px;margin:5px 0}
+.research-line-label{width:32px;font-size:.75rem;color:var(--text2);text-align:right;flex-shrink:0;letter-spacing:.04em}
+.line-type-btn{flex:1;padding:5px 2px;font-size:.7rem;border:1px solid var(--border);background:transparent;color:var(--text2);border-radius:2px;cursor:pointer;font-family:inherit;letter-spacing:.02em;transition:all .15s;line-height:1.4;text-align:center}
+.line-type-btn:hover{border-color:var(--gold);color:var(--gold)}
+.line-type-btn.sel{border-color:var(--gold2);color:var(--gold2);background:#1e1408}
+.line-type-btn.sel-ch{border-color:var(--red);color:var(--red);background:#1e0808}
+.research-hex-input{width:72px;background:#160e02;border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:2px;font-size:.9rem;outline:none;font-family:inherit;text-align:center}
+.research-hex-input:focus{border-color:var(--gold)}
 </style>
 </head>
 <body>
@@ -129,6 +165,11 @@ body{background:var(--bg);color:var(--text);font-family:"Hiragino Mincho ProN","
   <div class="app-title">
     <h1>易経占い</h1>
     <p>擲銭法（三枚筮）</p>
+  </div>
+  <div class="nav-bar">
+    <button class="nav-btn active" id="navHome" onclick="goHome()">占い</button>
+    <button class="nav-btn" id="navHistory" onclick="showHistory()">履歴</button>
+    <button class="nav-btn" id="navResearch" onclick="showResearch()">研究</button>
   </div>
   <div id="screen"></div>
 </div>
@@ -149,7 +190,7 @@ const TI={
 };
 const TP={1:[1,1,1],2:[1,1,0],3:[1,0,1],4:[1,0,0],5:[0,1,1],6:[0,1,0],7:[0,0,1],8:[0,0,0]};
 
-let state={screen:'welcome',question:'',throws:[],anim:false};
+let state={screen:'welcome',question:'',throws:[],anim:false,currentRecordId:null,researchVals:[7,7,7,7,7,7],researchDetailOpen:false};
 
 function getTrigram(y1,y2,y3){return BM[y3*4+y2*2+y1];}
 function getHexNum(u,l){return HT[u-1][l-1];}
@@ -247,9 +288,294 @@ function buildMiniSymbol(hexNum){
   return html;
 }
 
+// ── CSV History Storage ──
+const CSV_KEY='iching_history';
+const CSV_HDR='id,datetime,question,hexNum,hexName,zhiNum,zhiName,changing,memo';
+
+function escapeCsv(s){
+  s=String(s??'');
+  if(/[,"\n\r]/.test(s))return'"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+
+function parseCsvLine(line){
+  const f=[];let i=0;
+  while(i<=line.length){
+    if(i===line.length){f.push('');break;}
+    if(line[i]==='"'){
+      let v='';i++;
+      while(i<line.length){
+        if(line[i]==='"'&&line[i+1]==='"'){v+='"';i+=2;}
+        else if(line[i]==='"'){i++;break;}
+        else{v+=line[i++];}
+      }
+      f.push(v);if(line[i]===',')i++;
+    }else{
+      let j=line.indexOf(',',i);if(j<0)j=line.length;
+      f.push(line.slice(i,j));i=j+1;
+    }
+  }
+  return f;
+}
+
+function parseCsv(text){
+  const lines=(text||'').trim().split('\n');
+  if(lines.length<2)return[];
+  return lines.slice(1).map(l=>{
+    const f=parseCsvLine(l);
+    return{id:f[0]||'',datetime:f[1]||'',question:f[2]||'',hexNum:f[3]||'',hexName:f[4]||'',zhiNum:f[5]||'',zhiName:f[6]||'',changing:f[7]||'',memo:f[8]||''};
+  }).filter(r=>r.id);
+}
+
+function recordsToCsv(recs){
+  const rows=[CSV_HDR,...recs.map(r=>[r.id,r.datetime,r.question,r.hexNum,r.hexName,r.zhiNum,r.zhiName,r.changing,r.memo].map(escapeCsv).join(','))];
+  return rows.join('\n')+'\n';
+}
+
+function loadRecords(){
+  return parseCsv(localStorage.getItem(CSV_KEY)||'');
+}
+
+function saveRecord(r){
+  const h=HD[String(r.hexNum)];
+  const hexName=h?h.name:'';
+  const zhName=r.zhiNum&&HD[String(r.zhiNum)]?HD[String(r.zhiNum)].name:'';
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const dt=now.getFullYear()+'/'+pad(now.getMonth()+1)+'/'+pad(now.getDate())+' '+pad(now.getHours())+':'+pad(now.getMinutes());
+  const id=String(Date.now());
+  const rec={id,datetime:dt,question:state.question,hexNum:String(r.hexNum),hexName,zhiNum:String(r.zhiNum||''),zhiName:zhName,changing:r.changing.join('-'),memo:''};
+  const recs=loadRecords();
+  recs.push(rec);
+  localStorage.setItem(CSV_KEY,recordsToCsv(recs));
+  return id;
+}
+
+function updateMemo(id,memo){
+  const recs=loadRecords();
+  const rec=recs.find(r=>r.id===id);
+  if(rec){rec.memo=memo;localStorage.setItem(CSV_KEY,recordsToCsv(recs));}
+}
+
+function exportCsv(){
+  const csv=localStorage.getItem(CSV_KEY)||recordsToCsv([]);
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='易経占い履歴.csv';a.click();
+  URL.revokeObjectURL(url);
+}
+
+function setNavActive(name){
+  document.getElementById('navHome').className='nav-btn'+(name==='home'?' active':'');
+  document.getElementById('navHistory').className='nav-btn'+(name==='history'?' active':'');
+  document.getElementById('navResearch').className='nav-btn'+(name==='research'?' active':'');
+}
+
+function goHome(){
+  state.screen='welcome';
+  setNavActive('home');
+  showWelcome();
+}
+
+// ── Research Mode ──
+function showResearch(){
+  state.screen='research';
+  setNavActive('research');
+  renderResearch();
+}
+
+function setResearchLine(pos,val){
+  state.researchVals[pos]=val;
+  renderResearch();
+}
+
+function applyHexNum(){
+  const n=parseInt(document.getElementById('resHexInput').value);
+  if(n>=1&&n<=64){
+    const lines=getLines(n);
+    state.researchVals=lines.map(y=>y?7:8);
+    renderResearch();
+  }
+}
+
+function toggleResearchDetail(btn){
+  state.researchDetailOpen=!state.researchDetailOpen;
+  const sec=document.getElementById('detailSec');
+  if(sec)sec.style.display=state.researchDetailOpen?'block':'none';
+  btn.textContent=state.researchDetailOpen?'▲ 詳細考察を閉じる':'▼ 詳細考察（八卦属性・全爻の解釈）';
+}
+
+function renderResearch(){
+  const vals=state.researchVals;
+  const y=vals.map(v=>isYang(v)?1:0);
+  const lower=getTrigram(y[0],y[1],y[2]);
+  const upper=getTrigram(y[3],y[4],y[5]);
+  const hexNum=getHexNum(upper,lower);
+  const changing=vals.map((v,i)=>isChanging(v)?i:-1).filter(i=>i>=0);
+  let zhiNum=null;
+  if(changing.length>0){
+    const zy=y.map((v,i)=>changing.includes(i)?1-v:v);
+    const zl=getTrigram(zy[0],zy[1],zy[2]);
+    const zu=getTrigram(zy[3],zy[4],zy[5]);
+    zhiNum=getHexNum(zu,zl);
+  }
+  const h=HD[String(hexNum)];
+  if(!h){document.getElementById('screen').innerHTML='<p>データエラー</p>';return;}
+  const lowerInfo=TI[lower];const upperInfo=TI[upper];
+
+  // 爻セレクタ（上爻→初爻の順に表示）
+  const YAO_SYM={7:'━━━',9:'━○━',8:'━\u3000━',6:'━×━'};
+  const YAO_LBL={7:'少陽',9:'老陽',8:'少陰',6:'老陰'};
+  let selectorHtml='';
+  for(let i=5;i>=0;i--){
+    const posName=['初爻','二爻','三爻','四爻','五爻','上爻'][i];
+    const cur=vals[i];
+    selectorHtml+=`<div class="research-line-row"><div class="research-line-label">${posName}</div>`;
+    [7,9,8,6].forEach(v=>{
+      const isSel=cur===v;
+      const isCh=v===9||v===6;
+      const cls=isSel?(isCh?'line-type-btn sel-ch':'line-type-btn sel'):'line-type-btn';
+      selectorHtml+=`<button class="${cls}" onclick="setResearchLine(${i},${v})">${YAO_SYM[v]}<br><span style="font-size:.65rem">${YAO_LBL[v]}</span></button>`;
+    });
+    selectorHtml+='</div>';
+  }
+
+  // 変爻
+  let changingHtml='';
+  if(changing.length>0){
+    changingHtml='<div class="section-divider"></div><div class="card-title">◆ 変爻の解釈</div>';
+    changing.forEach(pos=>{
+      const yao=h.yaos[String(pos)];
+      if(yao)changingHtml+=`<div class="yao-section"><div class="yao-section-title">▶ ${yao.name}</div><div class="yao-section-text">${fmt(yao.text)}</div></div>`;
+    });
+  }
+
+  // 之卦
+  let zhiHtml='';
+  if(zhiNum&&zhiNum!==hexNum){
+    const zh=HD[String(zhiNum)];
+    if(zh){
+      let zhiLower,zhiUpper;
+      for(let u=1;u<=8;u++)for(let l=1;l<=8;l++)if(HT[u-1][l-1]===zhiNum){zhiLower=l;zhiUpper=u;}
+      const zLI=TI[zhiLower];const zUI=TI[zhiUpper];
+      zhiHtml=`<div class="section-divider"></div><div class="card-title">◆ 之卦（変化後の卦）</div>
+        <div class="zhi-section">
+          <div class="zhi-label">${h.name}（${hexNum}）→ ${zh.name}（${zhiNum}）</div>
+          <div class="zhi-hex-row">${buildMiniSymbol(zhiNum)}<div class="zhi-name"><h3>${zh.name}</h3><p>第${zhiNum}卦　${zUI.n}/${zLI.n}</p></div></div>
+          <div class="interpretation">${fmt(zh.overall)}</div>
+        </div>`;
+    }
+  }
+
+  // 詳細（八卦属性・全爻）
+  const detOpen=state.researchDetailOpen;
+  const detailHtml=`
+    <div class="card-title" style="margin-top:16px">◆ 八卦の属性</div>
+    <table class="tri-table">
+      <tr><th></th><th>上卦：${upperInfo.n}（${upperInfo.e}）</th><th>下卦：${lowerInfo.n}（${lowerInfo.e}）</th></tr>
+      <tr><th>五行</th><td>${upperInfo.go}</td><td>${lowerInfo.go}</td></tr>
+      <tr><th>方位</th><td>${upperInfo.ho}</td><td>${lowerInfo.ho}</td></tr>
+      <tr><th>家族</th><td>${upperInfo.fa}</td><td>${lowerInfo.fa}</td></tr>
+      <tr><th>身体</th><td>${upperInfo.bo}</td><td>${lowerInfo.bo}</td></tr>
+      <tr><th>動物</th><td>${upperInfo.an}</td><td>${lowerInfo.an}</td></tr>
+      <tr><th>色</th><td>${upperInfo.co}</td><td>${lowerInfo.co}</td></tr>
+      <tr><th>性質</th><td>${upperInfo.qi}</td><td>${lowerInfo.qi}</td></tr>
+      <tr><th>時間</th><td>${upperInfo.ti}</td><td>${lowerInfo.ti}</td></tr>
+      <tr><th>月</th><td>${upperInfo.mo}</td><td>${lowerInfo.mo}</td></tr>
+    </table>
+    <div class="card-title" style="margin-top:16px">◆ 全爻の解釈</div>
+    ${[5,4,3,2,1,0].map(pos=>{
+      const yao=h.yaos[String(pos)];if(!yao)return'';
+      const isChg=changing.includes(pos);
+      return`<div class="all-yao-item${isChg?' changing':''}">
+        <div class="all-yao-name">${yao.name}${isChg?'<span class="ch-mark">（変爻）</span>':''}</div>
+        <div class="all-yao-text">${fmt(yao.text)}</div>
+      </div>`;
+    }).join('')}`;
+
+  document.getElementById('screen').innerHTML=`
+    <div class="card">
+      <div class="card-title">◆ 研究モード</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-size:.8rem;color:var(--text2);letter-spacing:.06em">卦番号で指定：</span>
+        <input type="number" id="resHexInput" class="research-hex-input" min="1" max="64" placeholder="1〜64" onkeydown="if(event.key==='Enter')applyHexNum()">
+        <button class="memo-save-btn" onclick="applyHexNum()">指定</button>
+        <span style="font-size:.72rem;color:var(--text2)">※変爻なしで設定</span>
+      </div>
+      <div class="card-title">◆ 爻の設定</div>
+      <p style="font-size:.75rem;color:var(--text2);margin-bottom:8px;letter-spacing:.04em">各爻のタイプをクリックして選択　変爻（老）は赤色</p>
+      ${selectorHtml}
+      ${buildHexSymbol(vals)}
+      <div class="hex-name">
+        <h2>${h.name}</h2>
+        <div class="hex-num">第${hexNum}卦</div>
+        <div class="hex-trinames">上卦 ${upperInfo.n}（${upperInfo.e}）／ 下卦 ${lowerInfo.n}（${lowerInfo.e}）</div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="card-title">◆ 卦辞</div>
+      <div class="interpretation">${fmt(h.overall)}</div>
+      ${changingHtml}
+      ${zhiHtml}
+      <div class="section-divider"></div>
+      <button class="detail-toggle" onclick="toggleResearchDetail(this)">${detOpen?'▲ 詳細考察を閉じる':'▼ 詳細考察（八卦属性・全爻の解釈）'}</button>
+      <div id="detailSec" style="display:${detOpen?'block':'none'}">${detailHtml}</div>
+    </div>`;
+}
+
+function showHistory(){
+  state.screen='history';
+  setNavActive('history');
+  const recs=loadRecords().slice().reverse();
+  let html=`<div class="card"><div class="card-title">◆ 占い履歴</div>`;
+  if(recs.length===0){
+    html+=`<div class="history-empty">まだ履歴がありません</div>`;
+  }else{
+    html+=`<button class="export-btn" onclick="exportCsv()">↓ CSV形式でエクスポート（${recs.length}件）</button>`;
+    recs.forEach(rec=>{
+      const zhiPart=rec.zhiNum?` → ${rec.zhiName}（第${rec.zhiNum}卦）`:'';
+      const changingPart=rec.changing?rec.changing.split('-').filter(Boolean).map(i=>['初','二','三','四','五','上'][+i]+'爻').join('、'):'';
+      const escapedId=rec.id.replace(/[^0-9]/g,'');
+      html+=`<div class="history-item">
+        <div class="history-date">${rec.datetime}</div>
+        ${rec.question?`<div class="history-question">「${rec.question}」</div>`:''}
+        <div class="history-hex">${rec.hexName}（第${rec.hexNum}卦）${zhiPart}</div>
+        ${changingPart?`<div style="font-size:.75rem;color:var(--text2);margin-top:4px">変爻：${changingPart}</div>`:''}
+        ${rec.memo?`<div class="history-memo-text" id="hmemo-${escapedId}">${rec.memo}</div>`:`<div class="history-memo-text" id="hmemo-${escapedId}" style="display:none"></div>`}
+        <details class="memo-details" style="margin-top:8px">
+          <summary>✏ メモを${rec.memo?'編集':'追加'}</summary>
+          <textarea class="memo-input" id="minput-${escapedId}" placeholder="メモを入力…">${rec.memo||''}</textarea>
+          <button class="memo-save-btn" onclick="saveMemoHistory('${escapedId}','${rec.id}')">保存</button>
+        </details>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+  document.getElementById('screen').innerHTML=html;
+}
+
+function saveMemoHistory(escapedId,realId){
+  const input=document.getElementById('minput-'+escapedId);
+  if(!input)return;
+  updateMemo(realId,input.value);
+  const el=document.getElementById('hmemo-'+escapedId);
+  if(el){el.textContent=input.value;el.style.display=input.value?'':'none';}
+  const det=input.closest('details');
+  if(det){det.open=false;const s=det.querySelector('summary');if(s)s.textContent='✏ メモを'+(input.value?'編集':'追加');}
+}
+
+function saveMemoResult(){
+  const input=document.getElementById('resultMemoInput');
+  if(!input||!state.currentRecordId)return;
+  updateMemo(state.currentRecordId,input.value);
+  const btn=document.getElementById('resultMemoBtn');
+  if(btn){btn.textContent='✓ 保存しました';setTimeout(()=>{if(btn)btn.textContent='メモを保存';},1500);}
+}
+
 // ── Screens ──
 
 function showWelcome(){
+  setNavActive('home');
   document.getElementById('screen').innerHTML=`
     <div class="card">
       <div class="card-title">◆ 占いの準備</div>
@@ -368,9 +694,11 @@ function toggleDetail(btn){
 }
 
 function showResult(){
+  setNavActive('home');
   const r=computeResult();
   const h=HD[String(r.hexNum)];
   if(!h){document.getElementById('screen').innerHTML='<p>データエラー</p>';return;}
+  state.currentRecordId=saveRecord(r);
 
   // 本卦の爻名を実データから取得
   function yaoName(hexData, pos){
@@ -463,12 +791,20 @@ function showResult(){
           </div>`;
         }).join('')}
       </div>
+      <div class="section-divider"></div>
+      <div class="result-memo-area">
+        <div class="result-memo-label">✏ この占いにメモを残す</div>
+        <textarea class="memo-input" id="resultMemoInput" placeholder="気づいたこと、感想など…"></textarea>
+        <button class="memo-save-btn" id="resultMemoBtn" onclick="saveMemoResult()">メモを保存</button>
+      </div>
       <button class="btn restart-btn" onclick="restart()">◇ もう一度占う</button>
+      <button class="btn" style="margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--gold)" onclick="showHistory()">履歴を見る</button>
     </div>`;
 }
 
 function restart(){
-  state={screen:'welcome',question:state.question,throws:[],anim:false};
+  state={screen:'welcome',question:state.question,throws:[],anim:false,currentRecordId:null};
+  setNavActive('home');
   showWelcome();
 }
 
